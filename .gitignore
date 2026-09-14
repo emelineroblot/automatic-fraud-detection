@@ -44,3 +44,13 @@ mlruns/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Airflow (fichiers générés au runtime)
+airflow/config/airflow.cfg
+airflow/config/webserver_config.py
+airflow/logs/*
+!airflow/logs/.gitkeep
+
+# Rapports générés par le DAG quotidien
+reports/*
+!reports/.gitkeep

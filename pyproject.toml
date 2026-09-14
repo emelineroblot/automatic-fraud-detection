@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fraud-detection"
+version = "0.1.0"
+description = "Automatic fraud detection pipeline (Jedha - ETL with Airflow)"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas==2.3.3",
+    "scikit-learn==1.9.1",
+    "lightgbm==4.7.0",
+    "psycopg2-binary==2.9.13",
+    "requests==2.34.2",
+]
+
+[project.optional-dependencies]
+# Entraînement local (train.py) : MLflow complet pour logger vers le serveur
+train = ["mlflow==3.16.0", "matplotlib", "jupyter"]
+dev = ["pytest>=8", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
