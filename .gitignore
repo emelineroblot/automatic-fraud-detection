@@ -1,0 +1,46 @@
+# Contexte projet & fichiers Claude
+contexte/
+.claude/
+CLAUDE.md
+.agent-team/
+.seo-team/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.ipynb_checkpoints/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Data & modèles
+data/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+*.h5
+mlruns/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
