@@ -1,0 +1,8 @@
+# Dépendances ajoutées à l'image Airflow (les DAGs chargent le modèle MLflow et écrivent en base).
+# Versions alignées avec pyproject.toml : le pipeline sklearn picklé doit se charger à l'identique.
+mlflow-skinny==3.16.0
+scikit-learn==1.9.1
+lightgbm==4.7.0
+pandas==2.3.3
+psycopg2-binary==2.9.13
+requests==2.34.2
