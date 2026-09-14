@@ -54,3 +54,6 @@ airflow/logs/*
 # Rapports générés par le DAG quotidien
 reports/*
 !reports/.gitkeep
+
+# Certificats locaux (bundle CA pour proxy/antivirus)
+docker/certs/
