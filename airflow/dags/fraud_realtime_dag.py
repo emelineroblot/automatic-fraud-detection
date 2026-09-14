@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta
 
 import pendulum
-from airflow.sdk import dag, task
+from airflow.sdk import Param, dag, task
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +24,12 @@ log = logging.getLogger(__name__)
     max_active_runs=1,
     dagrun_timeout=timedelta(minutes=5),
     default_args={"retries": 2, "retry_delay": timedelta(seconds=15), "execution_timeout": timedelta(minutes=2)},
+    params={
+        # Déclenchement manuel : forcer le seuil (ex. 0 -> la transaction courante est traitée comme fraude,
+        # pratique pour tester/démontrer la chaîne d'alerte sans attendre une vraie fraude)
+        "threshold_override": Param(None, type=["null", "number"], minimum=0, maximum=1,
+                                    description="Seuil de décision forcé pour ce run (défaut : FRAUD_THRESHOLD)"),
+    },
     tags=["fraud", "realtime"],
 )
 def fraud_realtime():
@@ -46,7 +52,7 @@ def fraud_realtime():
         return rows
 
     @task
-    def predict(rows: list[dict]) -> list[dict]:
+    def predict(rows: list[dict], **context) -> list[dict]:
         """Charge le modèle `production` du registry MLflow et score les transactions."""
         if not rows:
             return []
@@ -54,6 +60,10 @@ def fraud_realtime():
         from fraud_detection.model import load_production_model, predict_frame
 
         model = load_production_model()
+        override = context["params"].get("threshold_override")
+        if override is not None:
+            log.warning("Seuil forcé pour ce run : %s (au lieu de %s)", override, model.threshold)
+            model.threshold = float(override)
         scored = predict_frame(model, to_frame(rows))
         scored = scored.astype(object).where(scored.notna(), None)   # NaN -> None (XCom JSON)
         out = scored.to_dict("records")
