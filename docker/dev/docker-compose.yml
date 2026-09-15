@@ -95,6 +95,24 @@ services:
         condition: service_healthy
     restart: always
 
+  dashboard:
+    build:
+      context: ../../dashboard
+      args:
+        PIP_EXTRA_ARGS: ${PIP_EXTRA_ARGS:-}
+    image: fraud-detection/dashboard:latest
+    environment:
+      FRAUD_DB_URI: postgresql://fraud:${FRAUD_DB_PASSWORD}@postgres:5432/fraud
+      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Europe/Paris}
+    ports:
+      - "${DASHBOARD_HOST_PORT:-8501}:8501"
+    volumes:
+      - ../../dashboard/app.py:/app/app.py:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
   airflow-apiserver:
     <<: *airflow-common
     command: api-server
