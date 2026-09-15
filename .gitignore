@@ -57,3 +57,9 @@ reports/*
 
 # Certificats locaux (bundle CA pour proxy/antivirus)
 docker/certs/
+
+# Documents de travail soutenance (internes) — docs/architecture.md et demo-script.md restent versionnés
+docs/journal-session.md
+docs/livrables-soutenances.md
+docs/soutenance.md
+docs/attendus-theoriques.md
