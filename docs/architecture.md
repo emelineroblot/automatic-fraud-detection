@@ -14,28 +14,26 @@ Contraintes minimales de l'énoncé : un élément qui **collecte & stocke**, un
 ## 2. Schéma
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph SRC["Sources de données"]
-        CSV[("fraudTest.csv<br/>555 719 transactions<br/>0,39 % de fraudes")]
-        API["API temps réel<br/>HF Space /current-transactions<br/>1 transaction / minute"]
-    end
-
-    subgraph TRAIN["Entraînement (poste local)"]
-        TR["training/train.py<br/>split temporel 80/20<br/>LogReg · RandomForest · LightGBM"]
+        CSV[("fraudTest.csv<br/>555 719 transactions · 0,39 % de fraudes")]
+        API["API temps réel (HF Space)<br/>/current-transactions · 1 transaction / minute"]
     end
 
     subgraph STACK["Docker Compose"]
+        TR["Entraînement · training/train.py<br/>split temporel 80/20<br/>LogReg · RandomForest · LightGBM"]
         MLF["MLflow 3<br/>tracking + registry<br/>models:/fraud_detection@production"]
         subgraph AF["Airflow 3 (LocalExecutor)"]
-            RT["DAG fraud_realtime  * * * * *<br/>extract → transform → predict → load → branch"]
-            DR["DAG fraud_daily_report  0 6 * * *<br/>aggregate → export_csv → store → notify"]
+            RT["DAG fraud_realtime — chaque minute<br/>extract → transform → predict → load → branch"]
+            DR["DAG fraud_daily_report — 6h Europe/Paris<br/>aggregate → export_csv → store → notify"]
         end
         PG[("PostgreSQL 16<br/>transactions · fraud_alerts · daily_reports")]
-        DASH["Dashboard Streamlit<br/>:8501"]
+        DASH["Dashboard Streamlit :8501"]
     end
 
-    subgraph OUT["Notifications"]
-        DISC["Discord (webhook)<br/>🚨 alerte fraude · 📊 rapport quotidien"]
+    subgraph OUT["Sorties"]
+        DISC["Discord (webhook)<br/>alerte fraude · rapport quotidien"]
+        REP[/"reports/transactions_YYYY-MM-DD.csv"/]
     end
 
     CSV --> TR -- "log_model + register + alias" --> MLF
@@ -43,10 +41,12 @@ flowchart LR
     MLF -- "load_model" --> RT
     RT -- "INSERT … ON CONFLICT DO NOTHING" --> PG
     RT -- "si is_fraud_pred = 1" --> DISC
-    PG --> DR --> DISC
-    DR -- "CSV" --> REP[/"reports/transactions_YYYY-MM-DD.csv"/]
-    PG --> DASH
-```
+    PG --> DR
+    DR --> DISC
+    DR -- "CSV" --> REP
+    PG --> DASH```
+
+Exports image du schéma (pour la plateforme ou une slide) : [`architecture.png`](architecture.png) (vertical), [`architecture-wide.png`](architecture-wide.png) (format bannière 16:9), et les `.svg` correspondants.
 
 Le package Python **`src/fraud_detection/`** (features, client API, DB, modèle, notifications) est partagé entre l'entraînement et les DAGs : le pipeline sklearn loggé dans MLflow embarque le `FeatureBuilder`, donc **une ligne brute de l'API traverse exactement les mêmes transformations qu'une ligne du CSV d'entraînement**.
 
