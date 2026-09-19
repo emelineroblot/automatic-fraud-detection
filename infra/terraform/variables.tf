@@ -23,9 +23,15 @@ variable "ec2_instance_type" {
 }
 
 variable "operator_cidr" {
-  description = "CIDR autorisé (SSH, UIs, psql). Vide = IP publique courante détectée automatiquement"
+  description = "CIDR autorisé pour SSH et psql. Vide = IP publique courante détectée automatiquement"
   type        = string
   default     = ""
+}
+
+variable "ui_cidr" {
+  description = "CIDR autorisé sur les UIs Airflow / MLflow / dashboard (0.0.0.0/0 = public, pour la soutenance)"
+  type        = string
+  default     = "0.0.0.0/0"
 }
 
 variable "dataset_path" {

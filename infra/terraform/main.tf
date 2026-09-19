@@ -43,7 +43,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# IP publique de l'opérateur : seul accès autorisé aux UIs, à SSH et à psql
+# IP publique de l'opérateur : seul accès autorisé à SSH et à psql (les UIs suivent var.ui_cidr)
 data "http" "my_ip" {
   url = "https://checkip.amazonaws.com"
 }
@@ -78,14 +78,16 @@ resource "aws_security_group" "ec2" {
     cidr_blocks = [local.my_cidr]
   }
 
+  # UIs (Airflow, MLflow, dashboard) : ouvertes publiquement pour la démo/soutenance (var.ui_cidr) ;
+  # SSH et PostgreSQL restent limités à l'IP de l'opérateur
   dynamic "ingress" {
     for_each = local.ui_ports
     content {
-      description = "${ingress.key} UI operateur"
+      description = "${ingress.key} UI"
       from_port   = ingress.value
       to_port     = ingress.value
       protocol    = "tcp"
-      cidr_blocks = [local.my_cidr]
+      cidr_blocks = [var.ui_cidr]
     }
   }
 
@@ -268,7 +270,9 @@ resource "aws_instance" "airflow" {
     fraud_threshold     = var.fraud_threshold
     report_timezone     = var.report_timezone
   })
-  user_data_replace_on_change = true
+  # false : une modification de user_data.sh ne recrée pas l'instance (données Postgres locales perdues sinon) ;
+  # pour rejouer le bootstrap : terraform taint aws_instance.airflow && terraform apply
+  user_data_replace_on_change = false
 
   tags = { Name = "${local.name}-airflow" }
 
