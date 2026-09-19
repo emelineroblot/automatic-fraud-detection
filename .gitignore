@@ -63,3 +63,14 @@ docs/journal-session.md
 docs/livrables-soutenances.md
 docs/soutenance.md
 docs/attendus-theoriques.md
+
+# Terraform (état, clés, secrets)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/tfplan
+infra/terraform/keys/
+infra/terraform/terraform.tfvars
+
+# Dataset téléchargé sur l'instance
+data/

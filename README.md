@@ -7,7 +7,7 @@ Pipeline de détection de fraude en temps réel — projet Jedha (*ETL with Airf
 - **PostgreSQL** conserve transactions, prédictions, alertes et rapports.
 - **Streamlit** propose un dashboard par journée et le suivi de la qualité du modèle en live.
 
-📄 Schéma et justification de l'architecture : [`docs/architecture.md`](docs/architecture.md) · Script de démo : [`docs/demo-script.md`](docs/demo-script.md)
+📄 Schéma et justification : [`docs/architecture.md`](docs/architecture.md) · Plan du pipeline (slides) : [`docs/pipeline-plan.pptx`](docs/pipeline-plan.pptx) / [PDF](docs/pipeline-plan.pdf) · **Production AWS** : [`docs/deployment-aws.md`](docs/deployment-aws.md) · Script de démo : [`docs/demo-script.md`](docs/demo-script.md)
 
 ```
 API HF (1 tx/min) ─► Airflow fraud_realtime ─► PostgreSQL ─► Discord 🚨
@@ -52,6 +52,17 @@ docker exec fraud-detection-airflow-scheduler-1 airflow dags unpause fraud_daily
 
 Arrêt : `docker compose --env-file .env -f docker/dev/docker-compose.yml down` (ajouter `-v` pour supprimer les données).
 
+## Production (AWS)
+
+```bash
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars   # webhook Discord
+bash infra/terraform/tf.sh init && bash infra/terraform/tf.sh apply             # EC2 + S3 + IAM, ≈ 2 min + 10 min de bootstrap
+bash infra/terraform/tf.sh output                                                # URLs Airflow / MLflow / dashboard
+bash infra/terraform/tf.sh destroy                                               # ≈ 2,5 $/jour sinon
+```
+
+L'instance clone ce dépôt, entraîne le modèle depuis le CSV stocké dans S3, démarre `docker/prod/docker-compose.yml` et dépause les DAGs. Détails : [`docs/deployment-aws.md`](docs/deployment-aws.md).
+
 ## Utilisation
 
 ```bash
@@ -78,9 +89,11 @@ training/train.py        split temporel, LogReg / RandomForest / LightGBM, log +
 mlflow/                  Dockerfile du serveur MLflow (backend PostgreSQL)
 dashboard/               app Streamlit
 sql/init.sql             schéma de la base fraud (transactions, fraud_alerts, daily_reports)
-docker/dev/              docker-compose.yml + script d'init PostgreSQL
+docker/dev/              docker-compose.yml de développement + script d'init PostgreSQL
+docker/prod/             docker-compose.yml de production (EC2 : artefacts MLflow et rapports dans S3, service training)
+infra/terraform/         EC2 + S3 + IAM + security group, user_data de bootstrap, tf.sh (Terraform dans Docker)
 tests/                   tests unitaires (features, parsing API, notifications, config)
-docs/                    architecture (livrable 1) + script de démo vidéo
+docs/                    architecture, plan du pipeline (pptx), déploiement AWS, script de démo
 reports/                 exports CSV du rapport quotidien
 ```
 
