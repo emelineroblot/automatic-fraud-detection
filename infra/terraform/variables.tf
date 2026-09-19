@@ -22,11 +22,6 @@ variable "ec2_instance_type" {
   default     = "m7i-flex.large"
 }
 
-variable "rds_instance_class" {
-  type    = string
-  default = "db.t4g.micro"
-}
-
 variable "operator_cidr" {
   description = "CIDR autorisé (SSH, UIs, psql). Vide = IP publique courante détectée automatiquement"
   type        = string

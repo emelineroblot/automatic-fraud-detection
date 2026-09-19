@@ -1,7 +1,7 @@
 # ============================================================
 # Automatic Fraud Detection — infrastructure de production (AWS, eu-north-1)
 #
-#   RDS PostgreSQL 16      : bases airflow (métadonnées), mlflow (tracking/registry), fraud (warehouse)
+#   PostgreSQL 16          : conteneur sur l'EC2 (volume EBS) — RDS bloqué par le quota du plan gratuit (1 instance)
 #   S3                     : dataset d'entraînement, artefacts MLflow, exports CSV du rapport quotidien
 #   EC2 (m7i-flex.large)   : Airflow 3 + MLflow + Streamlit via docker compose (docker/prod/)
 #   IAM                    : rôle d'instance (accès au bucket), aucune clé dans le code
@@ -70,6 +70,13 @@ resource "aws_security_group" "ec2" {
     protocol    = "tcp"
     cidr_blocks = [local.my_cidr]
   }
+  ingress {
+    description = "PostgreSQL operateur (psql depuis le poste)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [local.my_cidr]
+  }
 
   dynamic "ingress" {
     for_each = local.ui_ports
@@ -82,33 +89,6 @@ resource "aws_security_group" "ec2" {
     }
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_security_group" "rds" {
-  name        = "${local.name}-rds"
-  description = "PostgreSQL airflow / mlflow / fraud"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    description     = "PostgreSQL depuis l'EC2"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ec2.id]
-  }
-  ingress {
-    description = "PostgreSQL operateur (psql depuis le poste)"
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = [local.my_cidr]
-  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -156,9 +136,9 @@ resource "aws_s3_object" "dataset" {
   etag   = filemd5(var.dataset_path)
 }
 
-# ───────────────────────── RDS PostgreSQL 16 ─────────────────────────
+# ───────────────────────── PostgreSQL : mots de passe des 3 bases (conteneur sur l'EC2) ─────────────────────────
 
-resource "random_password" "rds_master" {
+resource "random_password" "postgres_master" {
   length  = 24
   special = false
 }
@@ -176,32 +156,6 @@ resource "random_password" "db_mlflow" {
 resource "random_password" "db_fraud" {
   length  = 24
   special = false
-}
-
-resource "aws_db_subnet_group" "rds" {
-  name       = "${local.name}-rds"
-  subnet_ids = data.aws_subnets.default.ids
-}
-
-resource "aws_db_instance" "postgres" {
-  identifier              = "${local.name}-postgres"
-  engine                  = "postgres"
-  engine_version          = "16"
-  instance_class          = var.rds_instance_class
-  allocated_storage       = 20
-  storage_type            = "gp3"
-  storage_encrypted       = true
-  db_name                 = "postgres"
-  username                = "fraud_admin"
-  password                = random_password.rds_master.result
-  db_subnet_group_name    = aws_db_subnet_group.rds.name
-  vpc_security_group_ids  = [aws_security_group.rds.id]
-  publicly_accessible     = true # restreint à l'IP opérateur + SG EC2
-  multi_az                = false
-  backup_retention_period = 1
-  skip_final_snapshot     = true
-  deletion_protection     = false
-  apply_immediately       = true
 }
 
 # ───────────────────────── IAM : rôle d'instance (S3 uniquement) ─────────────────────────
@@ -302,9 +256,7 @@ resource "aws_instance" "airflow" {
     aws_region          = var.region
     s3_bucket           = aws_s3_bucket.data.bucket
     dataset_key         = aws_s3_object.dataset.key
-    rds_host            = aws_db_instance.postgres.address
-    rds_master_user     = aws_db_instance.postgres.username
-    rds_master_password = random_password.rds_master.result
+    postgres_password   = random_password.postgres_master.result
     db_airflow_password = random_password.db_airflow.result
     db_mlflow_password  = random_password.db_mlflow.result
     db_fraud_password   = random_password.db_fraud.result
@@ -320,5 +272,5 @@ resource "aws_instance" "airflow" {
 
   tags = { Name = "${local.name}-airflow" }
 
-  depends_on = [aws_db_instance.postgres, aws_s3_object.dataset]
+  depends_on = [aws_s3_object.dataset]
 }

@@ -1,5 +1,5 @@
 # Stack de production (EC2) : MLflow + Airflow 3 (LocalExecutor) + dashboard.
-# PostgreSQL est externe (RDS, variable PGHOST) ; artefacts MLflow et rapports dans S3 (rôle d'instance).
+# PostgreSQL en conteneur (volume Docker sur l'EBS) ; artefacts MLflow et rapports dans S3 (rôle d'instance).
 # Lancer depuis la racine du dépôt :
 #   docker compose --env-file .env -f docker/prod/docker-compose.yml up -d --build
 #   docker compose --env-file .env -f docker/prod/docker-compose.yml --profile train run --rm training
@@ -17,7 +17,7 @@ x-airflow-common:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@${PGHOST}:5432/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -29,8 +29,8 @@ x-airflow-common:
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: '30'
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     # --- Pipeline ---
-    FRAUD_DB_URI: postgresql://fraud:${FRAUD_DB_PASSWORD}@${PGHOST}:5432/fraud
-    AIRFLOW_CONN_FRAUD_DB: postgresql://fraud:${FRAUD_DB_PASSWORD}@${PGHOST}:5432/fraud
+    FRAUD_DB_URI: postgresql://fraud:${FRAUD_DB_PASSWORD}@postgres:5432/fraud
+    AIRFLOW_CONN_FRAUD_DB: postgresql://fraud:${FRAUD_DB_PASSWORD}@postgres:5432/fraud
     MLFLOW_TRACKING_URI: http://mlflow:5000
     PYTHONPATH: /opt/airflow/src
   volumes:
@@ -43,10 +43,31 @@ x-airflow-common:
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
     mlflow:
       condition: service_healthy
 
 services:
+  postgres:
+    image: postgres:16
+    env_file:
+      - ../../.env
+    environment:
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../dev/postgres-init:/docker-entrypoint-initdb.d:ro
+      - ../../sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
   mlflow:
     build:
       context: ../../mlflow
@@ -54,7 +75,7 @@ services:
     env_file:
       - ../../.env
     environment:
-      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://mlflow:${MLFLOW_DB_PASSWORD}@${PGHOST}:5432/mlflow
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://mlflow:${MLFLOW_DB_PASSWORD}@postgres:5432/mlflow
       MLFLOW_ARTIFACTS_DESTINATION: ${MLFLOW_ARTIFACTS_DESTINATION:-/mlflow/artifacts}
     ports:
       - "5000:5000"
@@ -66,6 +87,9 @@ services:
       timeout: 5s
       retries: 20
       start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   dashboard:
@@ -73,10 +97,13 @@ services:
       context: ../../dashboard
     image: fraud-detection/dashboard:prod
     environment:
-      FRAUD_DB_URI: postgresql://fraud:${FRAUD_DB_PASSWORD}@${PGHOST}:5432/fraud
+      FRAUD_DB_URI: postgresql://fraud:${FRAUD_DB_PASSWORD}@postgres:5432/fraud
       REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Europe/Paris}
     ports:
       - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # Entraînement one-shot (profil "train") : lit le CSV téléchargé depuis S3, logge + enregistre dans MLflow
@@ -163,4 +190,5 @@ services:
     user: "0:0"
 
 volumes:
+  postgres-data:
   mlflow-artifacts:

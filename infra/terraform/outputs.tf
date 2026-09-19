@@ -23,12 +23,8 @@ output "bootstrap_log" {
   value = "ssh -i infra/terraform/keys/fraud-detection.pem ubuntu@${aws_instance.airflow.public_ip} 'sudo tail -f /var/log/fraud-bootstrap.log'"
 }
 
-output "rds_endpoint" {
-  value = aws_db_instance.postgres.address
-}
-
 output "psql_fraud" {
-  value     = "PGPASSWORD='${random_password.db_fraud.result}' psql -h ${aws_db_instance.postgres.address} -U fraud -d fraud"
+  value     = "PGPASSWORD='${random_password.db_fraud.result}' psql -h ${aws_instance.airflow.public_ip} -U fraud -d fraud"
   sensitive = true
 }
 
