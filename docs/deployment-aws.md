@@ -54,7 +54,7 @@ flowchart TB
 | Rapports quotidiens | `reports/` local | `reports/` local **+ S3** `reports/transactions_<date>.csv` (tâche `archive_s3`) |
 | Code | bind-mount `src/` (hot reload) | copié dans l'image ; DAGs depuis le clone git |
 | Secrets | `.env` écrit à la main | **générés par Terraform** (`random_password`, `random_bytes` pour Fernet), écrits dans `/opt/fraud/.env` (`chmod 600`) |
-| Accès | `localhost` | UIs (8080, 5000, 8501) **publiques** pour la démo (`ui_cidr`, défaut `0.0.0.0/0`) ; SSH et 5432 restreints à **l'IP publique de l'opérateur** |
+| Accès | `localhost` | **aucune restriction par IP** pour la démo (`ui_cidr` et `operator_cidr` = `0.0.0.0/0`) : UIs, SSH (clé uniquement), PostgreSQL (mot de passe). Restreindre : `operator_cidr = "<ip>/32"` (ou vide = IP détectée à l'apply) |
 
 ## 2. Ce que fait `user_data.sh` au premier démarrage
 
@@ -106,7 +106,7 @@ Sous Windows avec un antivirus qui intercepte le TLS, Terraform ne peut pas dial
 - Aucune clé AWS dans le code ni sur l'instance : S3 est accédé via le **rôle d'instance** (IMDSv2, `hop_limit = 2` pour les conteneurs).
 - Mots de passe Postgres, Airflow, clé Fernet et secret JWT **générés** par Terraform, stockés dans l'état local (gitignoré) et dans `.env` sur l'instance.
 - Clé SSH générée par Terraform → `infra/terraform/keys/` (gitignoré).
-- Security group : SSH et PostgreSQL limités à l'IP de l'opérateur ; les UIs sont ouvertes (`ui_cidr`) pour la soutenance — Airflow est protégé par login, MLflow et Streamlit ne le sont pas : à refermer (`ui_cidr = "<ip>/32"`) ou à mettre derrière un reverse proxy authentifié hors démo.
+- Security group : **tout ouvert** pour la soutenance (choix assumé) — SSH n'accepte que la clé, Postgres exige le mot de passe généré, Airflow a un login ; MLflow et Streamlit n'ont pas d'authentification. Hors démo : `operator_cidr` / `ui_cidr` à une IP, ou reverse proxy authentifié.
 - Chiffrement at-rest : volume EC2 (Postgres inclus), S3 (AES-256) ; versioning S3 ; bucket privé.
 - Limites assumées : UIs en HTTP (pas de TLS, pas de domaine) ; Postgres exposé sur 5432 pour `psql` depuis le poste ; base non managée (pas de sauvegarde automatique — snapshot EBS ou RDS en cible) — acceptable pour une démo restreinte à une IP, pas pour une vraie production (reverse proxy TLS, RDS privé, Secrets Manager).
 
