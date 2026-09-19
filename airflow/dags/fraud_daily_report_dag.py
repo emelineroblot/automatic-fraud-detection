@@ -1,7 +1,8 @@
 """DAG quotidien : chaque matin à 6h (Europe/Paris), agrège les paiements et fraudes de la veille,
 exporte un CSV, historise le rapport en base et le publie sur Discord.
 
-    aggregate -> export_csv -> store -> notify
+    aggregate -> export_csv -> archive_s3 -> notify
+    aggregate -> store
 
 Déclenchement manuel possible avec un paramètre `report_date` (YYYY-MM-DD) pour rejouer une journée.
 """
@@ -71,23 +72,31 @@ def fraud_daily_report():
         return str(path)
 
     @task
+    def archive_s3(csv_path: str) -> str | None:
+        """Copie l'export dans S3 en production (REPORTS_S3_BUCKET) ; no-op en dev."""
+        from fraud_detection.storage import upload_report
+
+        return upload_report(csv_path)
+
+    @task
     def store(stats: dict) -> None:
         from fraud_detection.db import upsert_daily_report
 
         upsert_daily_report(stats)
 
     @task
-    def notify(stats: dict, csv_path: str) -> str:
+    def notify(stats: dict, csv_path: str, s3_uri: str | None) -> str:
         from fraud_detection.notify import daily_report_embed, send_discord
 
-        status = send_discord(embeds=[daily_report_embed(stats, csv_path)])
+        status = send_discord(embeds=[daily_report_embed(stats, s3_uri or csv_path)])
         log.info("Rapport %s envoyé sur Discord : %s", stats["report_date"], status)
         return status
 
     stats = aggregate()
     csv_path = export_csv(stats)
+    s3_uri = archive_s3(csv_path)
     store(stats)
-    notify(stats, csv_path)
+    notify(stats, csv_path, s3_uri)
 
 
 def _jsonable(obj):
