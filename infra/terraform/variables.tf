@@ -23,9 +23,9 @@ variable "ec2_instance_type" {
 }
 
 variable "operator_cidr" {
-  description = "CIDR autorisé pour SSH et psql. Vide = IP publique courante détectée automatiquement"
+  description = "CIDR autorisé pour SSH et psql. 0.0.0.0/0 = aucune restriction (choix pour la soutenance : SSH par clé, Postgres par mot de passe). Vide = IP publique courante détectée automatiquement"
   type        = string
-  default     = ""
+  default     = "0.0.0.0/0"
 }
 
 variable "ui_cidr" {

@@ -43,7 +43,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# IP publique de l'opérateur : seul accès autorisé à SSH et à psql (les UIs suivent var.ui_cidr)
+# IP publique de l'opérateur, utilisée seulement si var.operator_cidr est vide (défaut : aucune restriction)
 data "http" "my_ip" {
   url = "https://checkip.amazonaws.com"
 }
@@ -79,7 +79,7 @@ resource "aws_security_group" "ec2" {
   }
 
   # UIs (Airflow, MLflow, dashboard) : ouvertes publiquement pour la démo/soutenance (var.ui_cidr) ;
-  # SSH et PostgreSQL restent limités à l'IP de l'opérateur
+  # SSH et PostgreSQL : var.operator_cidr (0.0.0.0/0 par défaut, une IP/32 pour restreindre)
   dynamic "ingress" {
     for_each = local.ui_ports
     content {
