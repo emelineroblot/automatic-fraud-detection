@@ -103,14 +103,18 @@ Limite connue : l'API temps réel rejoue des transactions du même dataset (elle
 | **Docker Compose** | Cloud (Neon, HF Space, EC2) | Reproductible en une commande, zéro coût, tout démontrable depuis le poste. Chaque brique est conteneurisée donc déployable telle quelle. |
 | **Airflow 3** | Airflow 2 | Version courante (Task SDK, API server) ; 2.x en fin de vie. |
 
-## 6. Évolutions possibles
+## 6. Production sur AWS
+
+La même stack tourne sur une **EC2 déclarée en Terraform** (`infra/terraform/`, 19 ressources) : `docker/prod/docker-compose.yml`, dataset et artefacts MLflow dans **S3**, exports CSV du rapport archivés dans S3 (tâche `archive_s3`), secrets générés, accès restreint à l'IP de l'opérateur. Détail, coût et limites : [`deployment-aws.md`](deployment-aws.md). Version slides du plan : [`pipeline-plan.pptx`](pipeline-plan.pptx).
+
+## 7. Évolutions possibles
 
 - **Débit plus élevé** : remplacer `extract` par un producer Kafka et le DAG par un consumer streaming ; Airflow garde le batch quotidien et le ré-entraînement.
 - **Ré-entraînement planifié** : un DAG hebdomadaire qui relance `train.py` sur les transactions accumulées (avec `is_fraud_truth`) et promeut la nouvelle version si la PR-AUC s'améliore.
 - **Déploiement cloud** : PostgreSQL managé (Neon/RDS), MLflow sur un Space HF ou une VM, Airflow sur une VM/Astronomer, artefacts MLflow sur S3.
 - **Canaux supplémentaires** : e-mail (`EmailOperator`) ou SMS pour les fraudes à gros montant.
 
-## 7. Arborescence
+## 8. Arborescence
 
 ```
 airflow/dags/            fraud_realtime_dag.py · fraud_daily_report_dag.py
@@ -120,7 +124,8 @@ training/train.py        entraînement + log MLflow + registry
 mlflow/Dockerfile        serveur MLflow (backend Postgres)
 dashboard/               app Streamlit
 sql/init.sql             schéma de la base fraud
-docker/dev/              docker-compose.yml + init PostgreSQL
+docker/dev/ · docker/prod/   compose de développement / de production (EC2)
+infra/terraform/         infrastructure AWS
 tests/                   13 tests unitaires (features, parsing API, notifications, config)
 docs/                    ce document + script de démo
 ```

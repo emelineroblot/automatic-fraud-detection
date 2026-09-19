@@ -44,6 +44,8 @@ MLFLOW_TRACKING_URI=http://mlflow:5000
 MLFLOW_MODEL_NAME=fraud_detection
 MLFLOW_MODEL_ALIAS=production
 MLFLOW_ARTIFACTS_DESTINATION=s3://${s3_bucket}/mlflow-artifacts
+# endpoint régional : sinon MLflow signe des URLs présignées sur s3.amazonaws.com -> SignatureDoesNotMatch
+MLFLOW_S3_ENDPOINT_URL=https://s3.${aws_region}.amazonaws.com
 FRAUD_API_URL=https://sdacelo-real-time-fraud-detection.hf.space/current-transactions
 FRAUD_THRESHOLD=${fraud_threshold}
 REPORT_TIMEZONE=${report_timezone}
