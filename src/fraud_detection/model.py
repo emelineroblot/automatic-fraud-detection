@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 import mlflow
 import numpy as np
@@ -27,6 +30,26 @@ class LoadedModel:
         return f"{self.name}@v{self.version}"
 
 
+def _cached_model_path(s: Settings, uri: str, version: str) -> Path:
+    """Télécharge le modèle une seule fois par version dans `MODEL_CACHE_DIR/<name>/v<version>`.
+
+    `mlflow.sklearn.load_model("models:/...")` sans `dst_path` crée un `mkdtemp()` à chaque appel
+    sans jamais le supprimer : avec un run par minute, ~35 Mo/min ont rempli le disque de l'EC2.
+    """
+    local = Path(s.model_cache_dir) / s.mlflow_model_name / f"v{version}"
+    if (local / "MLmodel").exists():
+        return local
+    partial = local.with_name(local.name + ".partial")
+    shutil.rmtree(partial, ignore_errors=True)
+    partial.mkdir(parents=True)
+    downloaded = mlflow.artifacts.download_artifacts(artifact_uri=uri, dst_path=str(partial))
+    shutil.rmtree(local, ignore_errors=True)
+    os.replace(downloaded, local)
+    shutil.rmtree(partial, ignore_errors=True)
+    log.info("Modèle téléchargé dans le cache local : %s", local)
+    return local
+
+
 def load_production_model(settings: Settings | None = None) -> LoadedModel:
     """Charge `models:/<name>@<alias>` (alias `production` par défaut) depuis MLflow."""
     s = settings or get_settings()
@@ -34,7 +57,8 @@ def load_production_model(settings: Settings | None = None) -> LoadedModel:
     client = MlflowClient()
     mv = client.get_model_version_by_alias(s.mlflow_model_name, s.mlflow_model_alias)
     uri = f"models:/{s.mlflow_model_name}@{s.mlflow_model_alias}"
-    pipeline = mlflow.sklearn.load_model(uri)
+    local = _cached_model_path(s, uri, str(mv.version))
+    pipeline = mlflow.sklearn.load_model(str(local))
     log.info("Modèle chargé : %s (version %s, run %s)", uri, mv.version, mv.run_id)
     return LoadedModel(pipeline=pipeline, name=s.mlflow_model_name, version=str(mv.version),
                        threshold=s.fraud_threshold)
