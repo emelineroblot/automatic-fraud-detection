@@ -86,6 +86,10 @@ Mettre à jour le code déployé : `ssh … 'cd /opt/fraud && sudo git pull'` �
 
 Pause sans détruire (données conservées sur l'EBS, ~0,1 $/jour) : `aws ec2 stop-instances --instance-ids $(bash infra/terraform/tf.sh output -raw instance_id)` ; l'IP publique change au redémarrage (`tf.sh apply -refresh-only` puis `output`).
 
+Le modèle est téléchargé **une fois par version** dans `MODEL_CACHE_DIR` du conteneur scheduler
+(`/tmp/fraud-model-cache`) : sans ce cache, `mlflow.sklearn.load_model` laisse 35 Mo dans `/tmp`
+à chaque run et remplit le disque en une nuit. Surveiller `df -h /`.
+
 `user_data_replace_on_change = false` : modifier `user_data.sh` ne recrée pas l'instance ; pour rejouer le bootstrap, `tf.sh taint aws_instance.airflow` puis `apply`.
 
 ## 4. Coût
