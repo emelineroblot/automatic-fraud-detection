@@ -23,6 +23,7 @@ class Settings:
     fraud_threshold: float
     report_timezone: str
     discord_webhook_url: str | None
+    model_cache_dir: str
 
 
 def get_settings() -> Settings:
@@ -38,4 +39,5 @@ def get_settings() -> Settings:
         fraud_threshold=float(_env("FRAUD_THRESHOLD", "0.5")),
         report_timezone=_env("REPORT_TIMEZONE", "Europe/Paris"),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
+        model_cache_dir=_env("MODEL_CACHE_DIR", "/tmp/fraud-model-cache"),
     )
